@@ -3,7 +3,7 @@
 A static web app that shows the latest ECMWF IFS open-data precipitation forecast over India
 (about 5–38°N, 66–100°E): a map with a rain layer and a time slider, and a rain timeline for any point you click.
 
-> Status: work in progress. Each section below is filled in as its step lands.
+**Live:** https://kumarsujay03.github.io/india-precip-forecast/ (updated daily)
 
 ## Data source
 
@@ -40,6 +40,14 @@ Times are shown in IST.
   - The play/pause button (or Space) steps through about 1.5 frames per second, and the ← → keys step one frame.
   - Each frame is rendered once (about 10 ms) and cached, and the next frame is rendered ahead during idle time.
 - **Time slider:** proportional to forecast hours, so the 6-hourly days after 144 h are not squeezed. It has IST day ticks.
+
+## Deployment
+
+`.github/workflows/deploy.yml` runs daily at 09:30 UTC, when the 00 UTC run is fully published. It also runs on manual dispatch and on every push to `main`.
+It runs in this order: `pytest`, then `fetch.py`, then `process.py`, then the `site/` folder is uploaded and deployed to GitHub Pages.
+Forecast data is built inside the job and never committed.
+If any step fails, the deploy job doesn't run, so the last good site stays live.
+Pull requests run the build only.
 
 ## Verification
 
