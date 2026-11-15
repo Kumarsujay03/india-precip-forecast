@@ -17,3 +17,6 @@ site/data/
 .vscode/
 .idea/
 .DS_Store
+
+# Local tooling
+.claude/

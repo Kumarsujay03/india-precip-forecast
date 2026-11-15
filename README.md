@@ -25,6 +25,14 @@ ECMWF IFS open data (`ecmwf-opendata` package), parameter `tp` (total precipitat
    - **Pack:** writes `site/data/rain.bin` as uint16 mm×10, shaped (64 intervals, lat, lon), about 2.3 MB.
      `site/data/meta.json` holds the run time, step hours and grid. Intervals are 3 h up to 144 h, then 6 h.
 
+## Front end
+
+`site/` is plain HTML/JS with Leaflet 1.9.4 and no build step.
+`rain.bin` is loaded into a `Uint16Array`. Each interval is drawn to a canvas and shown as a Leaflet image overlay.
+The canvas rows are spaced evenly in Web Mercator y, so the 0.25° lat/lon grid lines up with the basemap; a plain lat/lon image would drift north–south.
+Colours show the **mean rain rate in mm/h** over the interval, so 3 h and 6 h intervals are comparable.
+Times are shown in IST.
+
 ## Verification
 
 - `pytest`: a known accumulated series in metres gives the expected mm per step.
@@ -49,6 +57,7 @@ ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
 .venv/bin/python fetch.py          # downloads latest run to data/ (cached)
 .venv/bin/python process.py        # writes site/data/meta.json + rain.bin
 .venv/bin/pytest -q                # de-accumulation / unit tests
+python3 -m http.server 8765 -d site   # open http://localhost:8765
 ```
 
 ## Known limitations

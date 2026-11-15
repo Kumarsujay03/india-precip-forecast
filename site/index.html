@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>India Rain Forecast</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>India Rain Forecast</h1>
+    <span id="run">Loading forecast…</span>
+  </header>
+
+  <div id="map"></div>
+
+  <section id="controls">
+    <div id="when"><span id="valid">–</span> <span id="lead" class="dim"></span></div>
+    <input id="slider" type="range" min="0" max="0" value="0" step="1" aria-label="Forecast time">
+    <div id="legend"></div>
+  </section>
+
+  <footer>
+    Forecast data: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data">ECMWF IFS open data</a>,
+    © ECMWF, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
+    Processed (cropped, de-accumulated) for this site.
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
