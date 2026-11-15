@@ -16,10 +16,25 @@ ECMWF IFS open data (`ecmwf-opendata` package), parameter `tp` (total precipitat
    That file is published last, so a run still in progress is skipped and the previous run is used instead.
    It downloads `tp` for all 65 steps (3-hourly to 144 h, 6-hourly to 240 h) into `data/tp_YYYYMMDDHH.grib2`, about 25 MB (global 0.25°),
    and writes `data/latest.json` with the run time. A run that is already downloaded is reused, so `--force` is needed to re-download.
+2. **Process** (`process.py`):
+   - **Crop:** keeps the India box 38→5°N, 66→100°E, a 133×137 grid at 0.25°.
+   - **De-accumulate:** `tp` is the total *since the run started*, in metres, not the rain in each step.
+     Rain in interval *i* is `tp[i+1] − tp[i]`, multiplied by 1000 to get mm.
+     GRIB packing makes some accumulated series dip slightly, by up to 0.24 mm in a real run.
+     Applying a running maximum first stops those dips from producing negative rain, and the intervals still add up exactly to the final total.
+   - **Pack:** writes `site/data/rain.bin` as uint16 mm×10, shaped (64 intervals, lat, lon), about 2.3 MB.
+     `site/data/meta.json` holds the run time, step hours and grid. Intervals are 3 h up to 144 h, then 6 h.
 
 ## Verification
 
-_To be added._
+- `pytest`: a known accumulated series in metres gives the expected mm per step.
+  A packing dip gives no negatives and keeps the total, and the per-interval values sum back to the total on a grid.
+- Real run, 2026-11-15 00 UTC:
+  - `tp` at step 0 is 0.
+  - 3,177 of 1.17 M raw differences were negative, the worst at −0.24 mm. After processing the minimum is 0 and there are no NaNs.
+  - The per-interval values sum back to the running-maximum total exactly (difference 0).
+  - Packing to 0.1 mm changes the 10-day totals by a mean of 0.10 mm and at most 0.78 mm.
+- Chennai (13.0°N, 80.25°E), daily totals against Open-Meteo's `ecmwf_ifs025` model: 10-day total of 107.9 mm here vs 108.9 mm there, and every day within 0.5 mm.
 
 ## Run locally
 
@@ -32,6 +47,8 @@ ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
 
 ```bash
 .venv/bin/python fetch.py          # downloads latest run to data/ (cached)
+.venv/bin/python process.py        # writes site/data/meta.json + rain.bin
+.venv/bin/pytest -q                # de-accumulation / unit tests
 ```
 
 ## Known limitations
