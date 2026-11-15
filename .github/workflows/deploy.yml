@@ -48,6 +48,9 @@ jobs:
           cat site/data/meta.json | head -c 200; echo
           ls -la site/data
 
+      - name: Cache-bust site assets with the commit SHA
+        run: sed -i "s/__BUILD__/${GITHUB_SHA::7}/g" site/index.html && grep -c "v=${GITHUB_SHA::7}" site/index.html
+
       - uses: actions/configure-pages@v6
 
       - uses: actions/upload-pages-artifact@v5

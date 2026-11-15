@@ -4,10 +4,37 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>India Rain Forecast</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        onerror="this.onerror=null;this.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'">
+  <link rel="stylesheet" href="style.css?v=__BUILD__">
+  <!-- Critical styles inline, so the loading screen looks right even before (or without) style.css -->
+  <style>
+    html, body { margin: 0; height: 100%; background: #070b10; color: #d6e6ee; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    #loader { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 14px;
+      background: #070b10; text-align: center; padding: 16px; transition: opacity .5s ease, visibility .5s; }
+    .ready #loader { opacity: 0; visibility: hidden; }
+    #loader h2 { margin: 0; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: #38d6f5; }
+    #loader .ring { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #1f3a4a; border-top-color: #38d6f5;
+      animation: spin 0.9s linear infinite; }
+    #loader .bar { width: min(260px, 70vw); height: 3px; background: #1f3a4a; overflow: hidden; }
+    #loader-bar { display: block; height: 100%; width: 0; background: #38d6f5; box-shadow: 0 0 8px #38d6f5; transition: width .2s; }
+    #loader-msg { margin: 0; color: #7c93a1; font-size: 12px; max-width: 36em; }
+    #loader.error .ring { animation: none; border-color: #e8475e; }
+    #loader.error #loader-msg { color: #d6e6ee; }
+    #retry { font: inherit; color: #38d6f5; background: none; border: 1px solid #38d6f5; padding: 6px 16px; cursor: pointer; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { #loader .ring { animation-duration: 3s; } }
+  </style>
 </head>
 <body>
+  <div id="loader" role="status" aria-live="polite">
+    <div class="ring" aria-hidden="true"></div>
+    <h2>India Rain Forecast</h2>
+    <div class="bar"><span id="loader-bar"></span></div>
+    <p id="loader-msg">Loading map…</p>
+    <button id="retry" type="button" hidden onclick="location.reload()">Retry</button>
+  </div>
+
   <header>
     <h1>India Rain Forecast</h1>
     <span id="run">Loading forecast…</span>
@@ -46,10 +73,24 @@
     Processed (cropped, de-accumulated) for this site.
   </footer>
 
+  <script>
+    // Shared error display for the loading screen (works even if app.js never loads).
+    window.loaderError = function (msg) {
+      var l = document.getElementById("loader");
+      l.classList.add("error");
+      document.getElementById("loader-msg").textContent = msg;
+      document.getElementById("retry").hidden = false;
+    };
+    window.addEventListener("load", function () {
+      if (!window.appStarted) window.loaderError("Could not load the app scripts. Check your connection and retry.");
+    });
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script>window.L || document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>')</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <script src="dry.js"></script>
-  <script src="point.js"></script>
-  <script src="app.js"></script>
+  <script>window.Chart || document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>')</script>
+  <script src="dry.js?v=__BUILD__"></script>
+  <script src="point.js?v=__BUILD__"></script>
+  <script src="app.js?v=__BUILD__"></script>
 </body>
 </html>

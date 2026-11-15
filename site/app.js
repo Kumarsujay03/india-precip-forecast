@@ -13,13 +13,7 @@ const FRAME_MS = 650;       // playback speed
 const FADE_MS = 280;        // crossfade duration (matches CSS)
 
 const $ = (id) => document.getElementById(id);
-const map = L.map("map", { zoomSnap: 1, minZoom: 3, maxZoom: 10 });  // whole zooms: no tile seams
-// Keyless dark basemap (CARTO dark tiles now return an "API key required" placeholder).
-L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-  attribution: "Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-  maxZoom: 10,
-}).addTo(map);
-map.fitBounds([[5, 66], [38, 100]]);
+let map;   // created in initMap() once Leaflet is confirmed loaded
 
 let meta, rain, bounds, rowLat, layers, front = 0, current = -1, timer = null;
 const frames = new Map();   // interval index -> data URL (rendered once, reused)
@@ -172,11 +166,53 @@ function setPlaying(on) {
   }
 }
 
+function initMap() {
+  if (!window.L) throw new Error("the map library (Leaflet) could not be loaded - check your connection or content blocker");
+  map = L.map("map", { zoomSnap: 1, minZoom: 3, maxZoom: 10 });  // whole zooms: no tile seams
+  // Keyless dark basemap (CARTO dark tiles now return an "API key required" placeholder).
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+    attribution: "Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+    maxZoom: 10,
+  }).addTo(map);
+  map.fitBounds([[5, 66], [38, 100]]);
+}
+
+// Fetch rain.bin with a progress bar. Size is known from meta.json, so progress works
+// even when the server compresses the response (Content-Length is then the gzip size).
+async function fetchBin(url, expected, onProgress) {
+  const r = await fetch(url, { cache: "no-cache" });
+  if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+  if (!r.body) return r.arrayBuffer();
+  const out = new Uint8Array(expected), reader = r.body.getReader();
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (got + value.length > expected) throw new Error("rain.bin is larger than meta.json says");
+    out.set(value, got);
+    got += value.length;
+    onProgress(got / expected);
+  }
+  if (got !== expected) throw new Error("rain.bin is incomplete");
+  return out.buffer;
+}
+
+function loader(msg, frac) {
+  $("loader-msg").textContent = msg;
+  if (frac !== undefined) $("loader-bar").style.width = `${Math.round(frac * 100)}%`;
+}
+
 async function main() {
-  meta = await (await fetch("data/meta.json", { cache: "no-cache" })).json();
-  rain = new Uint16Array(await (await fetch("data/rain.bin", { cache: "no-cache" })).arrayBuffer());
-  const n = meta.steps.length - 1;
-  if (rain.length !== n * meta.nlat * meta.nlon) throw new Error("rain.bin size does not match meta.json");
+  window.appStarted = true;
+  initMap();
+  loader("Fetching forecast metadata…", 0.02);
+  const mr = await fetch("data/meta.json", { cache: "no-cache" });
+  if (!mr.ok) throw new Error(`forecast data not found (meta.json: HTTP ${mr.status})`);
+  meta = await mr.json();
+  const n = meta.steps.length - 1, bytes = n * meta.nlat * meta.nlon * 2;
+  rain = new Uint16Array(await fetchBin("data/rain.bin", bytes,
+    (f) => loader(`Downloading rainfall grid… ${((f * bytes) / 1e6).toFixed(1)} / ${(bytes / 1e6).toFixed(1)} MB`, 0.05 + 0.85 * f)));
+  loader("Rendering map…", 0.95);
 
   $("run").textContent = `IFS run ${meta.run.slice(0, 16).replace("T", " ")} UTC`;
   setupGrid();
@@ -202,6 +238,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  $("run").textContent = `Failed to load forecast: ${e.message}`;
   console.error(e);
+  window.loaderError(`Could not load the forecast: ${e.message}.`);
 });

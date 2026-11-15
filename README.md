@@ -39,6 +39,10 @@ Times are shown in IST.
   - Two image overlays crossfade over 280 ms when the time changes.
   - The play/pause button (or Space) steps through about 1.5 frames per second, and the ← → keys step one frame.
   - Each frame is rendered once (about 10 ms) and cached, and the next frame is rendered ahead during idle time.
+- **Loading and errors:** the loading screen's styles are built into `index.html`, so it looks right even before `style.css` arrives.
+  A progress bar tracks the 2.3 MB grid download. If data or scripts fail, the loading screen shows a clear message with a Retry button instead of an unstyled page.
+  Leaflet and Chart.js fall back to unpkg / jsDelivr if cdnjs is blocked.
+  On deploy, the workflow tags local assets with the commit SHA (`?v=abc1234`), so browsers never mix old and new files.
 - **Point forecast:** click anywhere in the India box to open a panel for the nearest 0.25° grid cell.
   It shows a rain-rate timeline (mm/h, stepped) with a running total, rain over the next 24 h, the total to the end of the forecast, and the peak rate.
   The chart marks "now" and shades the map's current frame. On phones the panel becomes a bottom sheet.
