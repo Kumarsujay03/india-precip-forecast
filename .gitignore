@@ -1,0 +1,19 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Downloaded / generated data (built by the Actions workflow, never committed)
+data/
+*.grib
+*.grib2
+*.grb
+*.grb2
+*.idx
+site/data/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
