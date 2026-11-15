@@ -101,7 +101,32 @@ a { color: var(--accent); }
   transition: opacity .4s; }
 #point:not([hidden]) ~ #hint { opacity: 0; }
 
+/* city search + locate */
+#finder { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+#finder[hidden] { display: none; }
+.search-box { position: relative; }
+#search { width: 220px; font: inherit; font-size: 13px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--line); padding: 5px 8px; outline: none; transition: border-color .2s, box-shadow .2s; }
+#search:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim); }
+#search::placeholder { color: var(--dim); }
+#results { position: absolute; z-index: 1500; top: calc(100% + 2px); left: 0; right: 0; margin: 0; padding: 0; list-style: none;
+  background: #0a1118; border: 1px solid var(--line); border-top-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+#results li { padding: 6px 8px; cursor: pointer; display: flex; justify-content: space-between; gap: 8px; }
+#results li span { color: var(--dim); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#results li[aria-selected="true"], #results li:hover { background: var(--accent-dim); }
+#locate { flex: none; width: 30px; height: 30px; display: grid; place-items: center; color: var(--accent);
+  background: transparent; border: 1px solid var(--line); cursor: pointer; transition: border-color .2s, background .2s; }
+#locate:hover { border-color: var(--accent); background: var(--accent-dim); }
+#locate.busy svg { animation: spin 1s linear infinite; }
+#toast { position: absolute; z-index: 1600; left: 50%; top: 12px; transform: translate(-50%, -8px); opacity: 0; pointer-events: none;
+  background: #0a1118; border: 1px solid var(--accent); color: var(--text); padding: 6px 12px; font-size: 12px;
+  max-width: calc(100% - 32px); transition: opacity .25s, transform .25s; }
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
 @media (max-width: 600px) {
+  #finder { margin-left: 0; width: 100%; }
+  .search-box { flex: 1; }
+  #search { width: 100%; font-size: 16px; }  /* 16px stops iOS zooming on focus */
   #point { top: auto; bottom: 8px; left: 8px; right: 8px; width: auto; max-width: none; max-height: 70%; padding: 8px 10px; }
   #pt-stats b { font-size: 13px; }
   .pt-chart { height: 140px; }

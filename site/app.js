@@ -235,6 +235,10 @@ async function main() {
   show(0);
   document.body.classList.add("ready");
   window.pointPanel = setupPointPanel(map, meta, rain, () => current);
+  // City search is optional: if the list fails to load, the rest of the app still works.
+  fetch("cities.json").then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((cities) => setupSearch(map, cities, window.pointPanel))
+    .catch(() => { $("finder").hidden = true; });
 }
 
 main().catch((e) => {

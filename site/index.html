@@ -13,6 +13,7 @@
     #loader { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 14px;
       background: #070b10; text-align: center; padding: 16px; transition: opacity .5s ease, visibility .5s; }
     .ready #loader { opacity: 0; visibility: hidden; }
+    .ready #loader .ring { animation: none; }
     #loader h2 { margin: 0; font-size: 15px; letter-spacing: .12em; text-transform: uppercase; color: #38d6f5; }
     #loader .ring { width: 44px; height: 44px; border-radius: 50%; border: 2px solid #1f3a4a; border-top-color: #38d6f5;
       animation: spin 0.9s linear infinite; }
@@ -38,6 +39,16 @@
   <header>
     <h1>India Rain Forecast</h1>
     <span id="run">Loading forecast…</span>
+    <div id="finder" role="search">
+      <div class="search-box">
+        <input id="search" type="search" placeholder="Search a city…" autocomplete="off" spellcheck="false"
+               role="combobox" aria-label="Search a city" aria-autocomplete="list" aria-controls="results" aria-expanded="false">
+        <ul id="results" role="listbox" hidden></ul>
+      </div>
+      <button id="locate" type="button" title="Use my location" aria-label="Use my location">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+    </div>
   </header>
 
   <main id="stage">
@@ -53,6 +64,7 @@
       <p class="pt-note">Nearest 0.25° grid cell · "dry" = below 0.1 mm/h for 6 h or more · shaded: dry window</p>
     </aside>
     <div id="hint">Click the map for a point forecast</div>
+    <div id="toast" role="status" aria-live="polite"></div>
   </main>
 
   <section id="controls">
@@ -71,6 +83,7 @@
     Forecast data: <a href="https://www.ecmwf.int/en/forecasts/datasets/open-data">ECMWF IFS open data</a>,
     © ECMWF, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.
     Processed (cropped, de-accumulated) for this site.
+    City list: <a href="https://www.geonames.org/">GeoNames</a> (CC BY 4.0).
   </footer>
 
   <script>
@@ -91,6 +104,7 @@
   <script>window.Chart || document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"><\/script>')</script>
   <script src="dry.js?v=__BUILD__"></script>
   <script src="point.js?v=__BUILD__"></script>
+  <script src="search.js?v=__BUILD__"></script>
   <script src="app.js?v=__BUILD__"></script>
 </body>
 </html>

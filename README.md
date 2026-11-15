@@ -48,6 +48,11 @@ Times are shown in IST.
   The chart marks "now" and shades the map's current frame. On phones the panel becomes a bottom sheet.
 - **Next dry window** (`site/dry.js`): starting from *now*, finds the first spell of at least 6 h where every interval's mean rate is below 0.1 mm/h.
   The current interval counts only from now. The panel says "dry now until …", "next dry window … → …", "dry for the rest of the forecast", or "no dry spell".
+- **City search:** type a city to see suggestions. Arrow keys and Enter work, and old names such as Bombay or Madras are accepted.
+  Picking a city flies the map there and opens its point panel.
+  The list is built into the site: 544 Indian places with population ≥ 100k, plus state capitals, from GeoNames (CC BY 4.0), made by `tools/build_cities.py`.
+  No search query leaves the browser.
+- **Use my location:** the ⌖ button asks the browser for your position, which is used only on the page. It then opens the point panel there, or says if you're outside India.
 - **Time slider:** proportional to forecast hours, so the 6-hourly days after 144 h are not squeezed. It has IST day ticks.
 
 ## Deployment
@@ -85,10 +90,14 @@ ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
 .venv/bin/python process.py        # writes site/data/meta.json + rain.bin
 .venv/bin/pytest -q                # de-accumulation / unit tests
 node --test tests/dry.test.js      # dry-window finder tests
+# rebuild the city list (GeoNames cities15000.txt + admin1CodesASCII.txt):
+python3 tools/build_cities.py cities15000.txt admin1CodesASCII.txt site/cities.json
 python3 -m http.server 8765 -d site   # open http://localhost:8765
 ```
 
 ## Known limitations
+
+- The city list only covers places in GeoNames' `cities15000` file with population ≥ 100k, plus state capitals. Smaller towns such as Leh aren't in it, but clicking the map still works anywhere.
 
 - Bilinear smoothing is for display only. It can make rain appear slightly beyond the 0.25° cells that actually had it.
 - The map uses whole zoom levels to avoid tile seams. Faint seams can still show on displays with fractional scaling (for example 1.67×) in Chromium.

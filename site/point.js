@@ -50,9 +50,9 @@ function setupPointPanel(map, meta, rain, getFrame) {
     return mm;
   }
 
-  function open(latlng) {
+  function open(latlng, label) {
     const i = Math.round((latlng.lat - lat0) / dlat), j = Math.round((latlng.lng - lon0) / dlon);
-    if (i < 0 || i >= nlat || j < 0 || j >= nlon) return;   // outside the India box
+    if (i < 0 || i >= nlat || j < 0 || j >= nlon) return false;   // outside the India box
     const glat = lat0 + i * dlat, glon = lon0 + j * dlon;
     const mm = series(i, j);
     const from = Math.max(0, nowH());
@@ -62,7 +62,7 @@ function setupPointPanel(map, meta, rain, getFrame) {
     if (!marker) marker = L.circleMarker([glat, glon], { radius: 6, color: ACCENT, weight: 2, fillOpacity: 0.15 }).addTo(map);
     else marker.setLatLng([glat, glon]);
 
-    $("pt-title").textContent = `${glat.toFixed(2)}°N ${glon.toFixed(2)}°E`;
+    $("pt-title").textContent = (label ? `${label} · ` : "") + `${glat.toFixed(2)}°N ${glon.toFixed(2)}°E`;
     $("pt-dry").innerHTML = dryText(dry, from);
     const next24 = rainBetween(steps, mm, from, Math.min(last, from + 24));
     const total = rainBetween(steps, mm, from, last);
@@ -76,6 +76,7 @@ function setupPointPanel(map, meta, rain, getFrame) {
     drawChart(mm);
     $("point").hidden = false;
     requestAnimationFrame(() => $("point").classList.add("open"));
+    return true;
   }
 
   function dryText(dry, from) {
