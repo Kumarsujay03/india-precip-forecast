@@ -36,6 +36,9 @@ jobs:
       - name: Unit tests (de-accumulation, units)
         run: pytest -q
 
+      - name: Unit tests (dry-window finder)
+        run: node --test tests/dry.test.js
+
       - name: Fetch latest complete IFS run (falls back to previous run)
         run: python fetch.py --out-dir data
 
