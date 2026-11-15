@@ -8,12 +8,29 @@ const ALIASES = {
   mysore: "Mysuru", benares: "Varanasi", banaras: "Varanasi", calicut: "Kozhikode",
 };
 
+// Great-circle distance in km.
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180, a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 +
+    Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lon2 - lon1) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(a));
+}
+
 function setupSearch(map, cities, panel) {
   const $ = (id) => document.getElementById(id);
   const input = $("search"), list = $("results"), locBtn = $("locate");
   const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const index = cities.map(([name, state, lat, lon]) => ({ name, state, lat, lon, key: norm(name) }));
   let matches = [], active = -1;
+
+  // Nearest listed city to a point, used to name map clicks in the point panel.
+  window.nearestPlace = (lat, lon) => {
+    let best = null, km = Infinity;
+    for (const c of index) {
+      const d = haversineKm(lat, lon, c.lat, c.lon);
+      if (d < km) { km = d; best = c; }
+    }
+    return best && { name: best.name, state: best.state, km };
+  };
 
   window.toast = toast;
   function toast(msg) {

@@ -53,11 +53,14 @@ Times are shown in IST.
 - **Point forecast:** click anywhere in the India box to open a panel for the nearest 0.25° grid cell.
   It shows a rain-rate timeline (mm/h, stepped) with a running total, rain over the next 24 h, the total to the end of the forecast, and the peak rate.
   The chart marks "now" and shades the map's current frame. On phones the panel becomes a bottom sheet.
+- **Place names for clicks:** the panel title names the clicked spot from the nearest town in the city list, using great-circle distance (about 0.1 ms per lookup).
+  Within 12 km it shows the town, with its state and the grid-cell coordinates below. Farther out it shows "N km from <town>", with "<town>, <state>" below.
+  These were checked against an independent Python haversine. For example, a Thar point is 47 km from Jaisalmer, and a point in the Western Ghats is Vettaikkaranpudur, Tamil Nadu.
 - **Next dry window** (`site/dry.js`): starting from *now*, finds the first spell of at least 6 h where every interval's mean rate is below 0.1 mm/h.
   The current interval counts only from now. The panel says "dry now until …", "next dry window … → …", "dry for the rest of the forecast", or "no dry spell".
 - **City search:** type a city to see suggestions. Arrow keys and Enter work, and old names such as Bombay or Madras are accepted.
   Picking a city flies the map there and opens its point panel.
-  The list is built into the site: 544 Indian places with population ≥ 100k, plus state capitals, from GeoNames (CC BY 4.0), made by `tools/build_cities.py`.
+  The list is built into the site: 3,788 Indian places with population ≥ 15k, plus state capitals, from GeoNames (CC BY 4.0), made by `tools/build_cities.py`. It is 46 KB gzipped and loads after the map.
   No search query leaves the browser.
 - **Use my location:** the ⌖ button asks the browser for your position, which is used only on the page. It then opens the point panel there, or says if you're outside India.
 - **Time slider:** proportional to forecast hours, so the 6-hourly days after 144 h are not squeezed. It has IST day ticks.
@@ -106,7 +109,7 @@ python3 -m http.server 8765 -d site   # open http://localhost:8765
 
 ## Known limitations
 
-- The city list only covers places in GeoNames' `cities15000` file with population ≥ 100k, plus state capitals. Smaller towns such as Leh aren't in it, but clicking the map still works anywhere.
+- Places are named from towns with population ≥ 15k (GeoNames `cities15000`). Far from any such town, the panel gives the distance to the nearest one. It labels the state as that town's state, because the clicked point may lie across a state border.
 
 - Bilinear smoothing is for display only. It can make rain appear slightly beyond the 0.25° cells that actually had it.
 - The India mask is grown by about 14 km so coasts and small islands keep their rain. Rain within that distance offshore is therefore still drawn.

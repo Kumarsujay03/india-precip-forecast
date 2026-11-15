@@ -13,7 +13,7 @@ import json
 import sys
 
 LAT_S, LAT_N, LON_W, LON_E = 5.0, 38.0, 66.0, 100.0
-MIN_POP = 100_000
+MIN_POP = 15_000   # every Indian place in cities15000; used for search and naming map clicks
 
 
 def main(cities_path, admin1_path, out_path):

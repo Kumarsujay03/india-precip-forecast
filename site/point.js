@@ -62,7 +62,7 @@ function setupPointPanel(map, meta, rain, getFrame) {
     if (!marker) marker = L.circleMarker([glat, glon], { radius: 6, color: ACCENT, weight: 2, fillOpacity: 0.15 }).addTo(map);
     else marker.setLatLng([glat, glon]);
 
-    $("pt-title").textContent = (label ? `${label} · ` : "") + `${glat.toFixed(2)}°N ${glon.toFixed(2)}°E`;
+    setTitle(latlng, label, `${glat.toFixed(2)}°N ${glon.toFixed(2)}°E`);
     $("pt-dry").innerHTML = dryText(dry, from);
     const next24 = rainBetween(steps, mm, from, Math.min(last, from + 24));
     const total = rainBetween(steps, mm, from, last);
@@ -77,6 +77,25 @@ function setupPointPanel(map, meta, rain, getFrame) {
     $("point").hidden = false;
     requestAnimationFrame(() => $("point").classList.add("open"));
     return true;
+  }
+
+  // Title: place name (searched label, the nearest listed city, or "N km from <city>")
+  // on the first line; state and grid-cell coordinates below.
+  const NEAR_KM = 12;
+  function setTitle(latlng, label, coords) {
+    const p = window.nearestPlace?.(latlng.lat, latlng.lng);
+    let place = label || "Selected point", sub = coords;
+    if (p && (label ? p.km < 5 : p.km < NEAR_KM)) {
+      place = label || p.name;                       // inside a town: name it, state below
+      sub = `${p.state} · ${coords}`;
+    } else if (p && !label) {
+      // Farther away: give the distance to the nearest town. The state belongs to that town,
+      // not necessarily to the clicked point (which may be across a state border).
+      place = `${Math.round(p.km)} km from ${p.name}`;
+      sub = `${p.name}, ${p.state} · ${coords}`;
+    }
+    $("pt-place").textContent = place;
+    $("pt-sub").textContent = sub;
   }
 
   function dryText(dry, from) {

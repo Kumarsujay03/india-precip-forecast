@@ -319,7 +319,7 @@ async function main() {
   window.appStarted = true;
   initMap();
   loader("Fetching forecast metadata…", 0.02);
-  const indiaReq = fetch("india.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  const indiaReq = fetch("india.geojson", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const mr = await fetch("data/meta.json", { cache: "no-cache" });
   if (!mr.ok) throw new Error(`forecast data not found (meta.json: HTTP ${mr.status})`);
   meta = await mr.json();
@@ -354,7 +354,7 @@ async function main() {
   fitIndia();
   window.pointPanel = setupPointPanel(map, meta, rain, () => current);
   // City search is optional: if the list fails to load, the rest of the app still works.
-  fetch("cities.json").then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+  fetch("cities.json", { cache: "no-cache" }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
     .then((cities) => { addCityLabels(cities); setupSearch(map, cities, window.pointPanel); })
     .catch(() => { $("finder").hidden = true; });
 }

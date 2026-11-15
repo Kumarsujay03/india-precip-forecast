@@ -92,7 +92,10 @@ a { color: var(--accent); }
   padding: 10px 12px; max-height: calc(100% - 24px); overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,.5);
   opacity: 0; transform: translateY(-6px); transition: opacity .25s ease, transform .25s ease; }
 #point.open { opacity: 1; transform: none; }
-.pt-head { display: flex; justify-content: space-between; align-items: center; color: var(--accent); letter-spacing: .05em; }
+.pt-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+#pt-title { min-width: 0; }
+#pt-place { display: block; color: var(--accent); font-weight: 600; letter-spacing: .04em; }
+#pt-sub { display: block; color: var(--dim); font-size: 11px; margin-top: 2px; }
 #pt-close { background: none; border: 0; color: var(--dim); font-size: 20px; line-height: 1; cursor: pointer; padding: 0 4px; }
 #pt-close:hover { color: var(--accent); }
 #pt-dry { margin: 8px 0; padding: 6px 8px; border-left: 2px solid var(--accent); background: rgba(56,214,245,.06); }
