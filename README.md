@@ -39,6 +39,11 @@ Times are shown in IST.
   - Two image overlays crossfade over 280 ms when the time changes.
   - The play/pause button (or Space) steps through about 1.5 frames per second, and the ← → keys step one frame.
   - Each frame is rendered once (about 10 ms) and cached, and the next frame is rendered ahead during idle time.
+- **Point forecast:** click anywhere in the India box to open a panel for the nearest 0.25° grid cell.
+  It shows a rain-rate timeline (mm/h, stepped) with a running total, rain over the next 24 h, the total to the end of the forecast, and the peak rate.
+  The chart marks "now" and shades the map's current frame. On phones the panel becomes a bottom sheet.
+- **Next dry window** (`site/dry.js`): starting from *now*, finds the first spell of at least 6 h where every interval's mean rate is below 0.1 mm/h.
+  The current interval counts only from now. The panel says "dry now until …", "next dry window … → …", "dry for the rest of the forecast", or "no dry spell".
 - **Time slider:** proportional to forecast hours, so the 6-hourly days after 144 h are not squeezed. It has IST day ticks.
 
 ## Deployment
@@ -53,6 +58,8 @@ Pull requests run the build only.
 
 - `pytest`: a known accumulated series in metres gives the expected mm per step.
   A packing dip gives no negatives and keeps the total, and the per-interval values sum back to the total on a grid.
+- `node --test tests/dry.test.js`: the dry-window finder handles the first spell, dry now, short spells being skipped, a spell still running at the forecast end, and no spell at all. Totals are pro-rated over part-covered intervals.
+- Dry window for Chennai at +9.9 h, computed independently in Python: dry for 62.1 h, until Wed 18 Nov 05:30 IST; peak 5.2 mm/h on Thu 19 Nov 11:30 IST; 108.1 mm to the end of the forecast. These match the panel.
 - Real run, 2026-11-15 00 UTC:
   - `tp` at step 0 is 0.
   - 3,177 of 1.17 M raw differences were negative, the worst at −0.24 mm. After processing the minimum is 0 and there are no NaNs.
@@ -73,6 +80,7 @@ ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
 .venv/bin/python fetch.py          # downloads latest run to data/ (cached)
 .venv/bin/python process.py        # writes site/data/meta.json + rain.bin
 .venv/bin/pytest -q                # de-accumulation / unit tests
+node --test tests/dry.test.js      # dry-window finder tests
 python3 -m http.server 8765 -d site   # open http://localhost:8765
 ```
 

@@ -114,6 +114,7 @@ function show(t) {
   if (img.src === url) swap();
   else { img.onload = swap; back.setUrl(url); }
   updateLabels(t);
+  window.pointPanel?.onFrame(t);
   // warm the cache for the next frame so playback stays smooth
   requestIdleCallback?.(() => renderFrame((t + 1) % (meta.steps.length - 1)));
 }
@@ -197,6 +198,7 @@ async function main() {
   buildTicks();
   show(0);
   document.body.classList.add("ready");
+  window.pointPanel = setupPointPanel(map, meta, rain, () => current);
 }
 
 main().catch((e) => {
