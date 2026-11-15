@@ -12,7 +12,10 @@ ECMWF IFS open data (`ecmwf-opendata` package), parameter `tp` (total precipitat
 
 ## Processing
 
-_To be added._
+1. **Fetch** (`fetch.py`): finds the newest 00/12 UTC run whose 240 h file is already published.
+   That file is published last, so a run still in progress is skipped and the previous run is used instead.
+   It downloads `tp` for all 65 steps (3-hourly to 144 h, 6-hourly to 240 h) into `data/tp_YYYYMMDDHH.grib2`, about 25 MB (global 0.25°),
+   and writes `data/latest.json` with the run time. A run that is already downloaded is reused, so `--force` is needed to re-download.
 
 ## Verification
 
@@ -26,6 +29,10 @@ python3 -m venv .venv
 ```
 
 ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
+
+```bash
+.venv/bin/python fetch.py          # downloads latest run to data/ (cached)
+```
 
 ## Known limitations
 
