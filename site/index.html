@@ -17,7 +17,13 @@
 
   <section id="controls">
     <div id="when"><span id="valid">–</span> <span id="lead" class="dim"></span></div>
-    <input id="slider" type="range" min="0" max="0" value="0" step="1" aria-label="Forecast time">
+    <div id="timeline">
+      <button id="play" type="button" aria-label="Play"><span></span></button>
+      <div id="track">
+        <input id="slider" type="range" min="0" max="0" value="0" step="1" aria-label="Forecast time">
+        <div id="ticks"></div>
+      </div>
+    </div>
     <div id="legend"></div>
   </section>
 

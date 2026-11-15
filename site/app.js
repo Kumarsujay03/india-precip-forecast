@@ -1,103 +1,205 @@
-// Minimal viewer: rain layer for one forecast interval + time slider.
+// Rain viewer: smooth rain field per forecast interval, crossfading time slider, play/pause.
 // Data: data/meta.json + data/rain.bin (uint16 LE, mm*scale, [interval][lat][lon]).
 
 // Colour by mean rain rate (mm/h) so 3 h and 6 h intervals are comparable.
-const LEVELS = [0.1, 0.5, 1, 2, 4, 8, 16, 32];          // mm/h thresholds
-const COLORS = [
-  [160, 230, 255], [90, 200, 250], [40, 150, 240], [30, 90, 220],
-  [60, 200, 120], [250, 220, 50], [250, 120, 30], [230, 30, 60],
+// Colours are interpolated (in log rate) between these stops.
+const STOPS = [
+  [0.1, [120, 220, 255]], [0.5, [60, 190, 250]], [1, [40, 140, 240]], [2, [50, 90, 225]],
+  [4, [60, 200, 130]], [8, [245, 220, 60]], [16, [250, 130, 35]], [32, [235, 40, 70]],
 ];
+const MIN_RATE = 0.1;       // below this: fully transparent
+const SUPERSAMPLE = 4;      // output pixels per grid cell (bilinear in between)
+const FRAME_MS = 650;       // playback speed
+const FADE_MS = 280;        // crossfade duration (matches CSS)
 
+const $ = (id) => document.getElementById(id);
+const map = L.map("map", { zoomSnap: 1, minZoom: 3, maxZoom: 10 });  // whole zooms: no tile seams
 // Keyless dark basemap (CARTO dark tiles now return an "API key required" placeholder).
-const map = L.map("map", { zoomSnap: 0.25, minZoom: 3, maxZoom: 10 });
 L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
   attribution: "Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
   maxZoom: 10,
 }).addTo(map);
 map.fitBounds([[5, 66], [38, 100]]);
 
-let meta, rain, overlay;
+let meta, rain, bounds, rowLat, layers, front = 0, current = -1, timer = null;
+const frames = new Map();   // interval index -> data URL (rendered once, reused)
 
-function colorFor(rate) {
-  let k = -1;
-  for (let i = 0; i < LEVELS.length; i++) if (rate >= LEVELS[i]) k = i;
-  return k < 0 ? null : COLORS[k];
-}
+// ---------- colour ----------
+const LUT_SIZE = 512, LUT_MAX = 64;  // rate lookup table on a log axis up to 64 mm/h
+const lut = new Uint8ClampedArray(LUT_SIZE * 4);
+(function buildLut() {
+  const lo = Math.log(MIN_RATE), hi = Math.log(LUT_MAX);
+  for (let k = 0; k < LUT_SIZE; k++) {
+    const rate = Math.exp(lo + (k / (LUT_SIZE - 1)) * (hi - lo));
+    let c = STOPS[STOPS.length - 1][1];
+    if (rate < STOPS[0][0]) c = STOPS[0][1];
+    for (let s = 0; s < STOPS.length - 1; s++) {
+      const [r0, c0] = STOPS[s], [r1, c1] = STOPS[s + 1];
+      if (rate >= r0 && rate < r1) {
+        const f = (Math.log(rate) - Math.log(r0)) / (Math.log(r1) - Math.log(r0));
+        c = c0.map((v, i) => v + f * (c1[i] - v));
+        break;
+      }
+    }
+    // fade in from MIN_RATE to 1 mm/h so light drizzle is a soft haze
+    const a = Math.min(1, (Math.log(rate) - lo) / (Math.log(1) - lo));
+    lut.set([c[0], c[1], c[2], 60 + 175 * a], k * 4);
+  }
+})();
+const lutIndex = (rate) =>
+  Math.min(LUT_SIZE - 1, Math.round(((Math.log(rate) - Math.log(MIN_RATE)) / (Math.log(LUT_MAX) - Math.log(MIN_RATE))) * (LUT_SIZE - 1)));
 
-// Web Mercator y for a latitude (for reprojecting the lat/lon grid).
+// ---------- rendering ----------
 const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
 
-function render(t) {
-  const { nlat, nlon, lat0, lon0, dlat, dlon, scale, steps } = meta;
-  const hours = steps[t + 1] - steps[t];
-  const north = lat0 - dlat / 2, south = lat0 + dlat * (nlat - 0.5);  // dlat < 0
+function setupGrid() {
+  const { nlat, nlon, lat0, lon0, dlat, dlon } = meta;
+  const north = lat0 - dlat / 2, south = lat0 + dlat * (nlat - 0.5);   // dlat < 0
   const west = lon0 - dlon / 2, east = lon0 + dlon * (nlon - 0.5);
-
-  // Canvas rows are evenly spaced in Mercator y, so the image overlay
-  // (which Leaflet stretches linearly in projected space) lands correctly.
-  const W = nlon, H = 300;
+  bounds = [[south, west], [north, east]];
+  // Canvas rows evenly spaced in Web Mercator y, so Leaflet's linear stretch lands correctly.
+  const H = Math.round(nlat * SUPERSAMPLE * 1.15);
   const yN = mercY(north), yS = mercY(south);
+  rowLat = new Float32Array(H);
+  for (let r = 0; r < H; r++) {
+    const y = yN + ((r + 0.5) / H) * (yS - yN);
+    rowLat[r] = (360 / Math.PI) * Math.atan(Math.exp(y)) - 90;
+  }
+}
+
+function renderFrame(t) {
+  if (frames.has(t)) return frames.get(t);
+  const { nlat, nlon, lat0, lon0, dlat, scale, steps } = meta;
+  const hours = steps[t + 1] - steps[t];
+  const W = nlon * SUPERSAMPLE, H = rowLat.length;
   const canvas = document.createElement("canvas");
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(W, H);
-  const base = t * nlat * nlon;
+  const base = t * nlat * nlon, k = 1 / (scale * hours);
   for (let r = 0; r < H; r++) {
-    const y = yN + ((r + 0.5) / H) * (yS - yN);
-    const lat = (360 / Math.PI) * Math.atan(Math.exp(y)) - 90;
-    const i = Math.min(nlat - 1, Math.max(0, Math.round((lat - lat0) / dlat)));
-    for (let j = 0; j < W; j++) {
-      const rate = rain[base + i * nlon + j] / scale / hours;
-      const c = colorFor(rate);
-      if (!c) continue;
-      const p = (r * W + j) * 4;
-      img.data[p] = c[0]; img.data[p + 1] = c[1]; img.data[p + 2] = c[2]; img.data[p + 3] = 190;
+    const fi = Math.min(nlat - 1, Math.max(0, (rowLat[r] - lat0) / dlat));
+    const i0 = Math.floor(fi), i1 = Math.min(nlat - 1, i0 + 1), wi = fi - i0;
+    const row0 = base + i0 * nlon, row1 = base + i1 * nlon;
+    for (let x = 0; x < W; x++) {
+      const fj = Math.min(nlon - 1, Math.max(0, (x + 0.5) / SUPERSAMPLE - 0.5));
+      const j0 = Math.floor(fj), j1 = Math.min(nlon - 1, j0 + 1), wj = fj - j0;
+      const v = (rain[row0 + j0] * (1 - wj) + rain[row0 + j1] * wj) * (1 - wi)
+              + (rain[row1 + j0] * (1 - wj) + rain[row1 + j1] * wj) * wi;
+      const rate = v * k;
+      if (rate < MIN_RATE) continue;
+      const q = lutIndex(rate) * 4, p = (r * W + x) * 4;
+      img.data[p] = lut[q]; img.data[p + 1] = lut[q + 1]; img.data[p + 2] = lut[q + 2]; img.data[p + 3] = lut[q + 3];
     }
   }
   ctx.putImageData(img, 0, 0);
-
-  const bounds = [[south, west], [north, east]];
-  if (overlay) overlay.setUrl(canvas.toDataURL());
-  else overlay = L.imageOverlay(canvas.toDataURL(), bounds, { opacity: 0.85, className: "rain" }).addTo(map);
-
-  const run = new Date(meta.run);
-  const start = new Date(run.getTime() + steps[t] * 3600e3);
-  const end = new Date(run.getTime() + steps[t + 1] * 3600e3);
-  document.getElementById("valid").textContent = `${fmtIST(start)} → ${fmtIST(end, true)} IST`;
-  document.getElementById("lead").textContent = `(+${steps[t]}–${steps[t + 1]} h, ${hours} h interval)`;
+  const url = canvas.toDataURL();
+  frames.set(t, url);
+  return url;
 }
 
-function fmtIST(d, timeOnly = false) {
-  const opts = { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: false };
-  if (!timeOnly) Object.assign(opts, { weekday: "short", day: "numeric", month: "short" });
-  return d.toLocaleString("en-IN", opts);
+// Crossfade: load the new frame into the hidden overlay, then swap opacities.
+function show(t) {
+  if (t === current) return;
+  current = t;
+  const back = layers[1 - front];
+  const img = back.getElement();
+  const url = renderFrame(t);
+  const swap = () => {
+    if (current !== t) return;            // a newer frame was requested meanwhile
+    back.setOpacity(1);
+    layers[front].setOpacity(0);
+    front = 1 - front;
+  };
+  if (img.src === url) swap();
+  else { img.onload = swap; back.setUrl(url); }
+  updateLabels(t);
+  // warm the cache for the next frame so playback stays smooth
+  requestIdleCallback?.(() => renderFrame((t + 1) % (meta.steps.length - 1)));
+}
+
+// ---------- labels / controls ----------
+function fmtIST(d, opts) {
+  return d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", hour12: false, ...opts });
+}
+
+function updateLabels(t) {
+  const { steps } = meta, run = Date.parse(meta.run);
+  const start = new Date(run + steps[t] * 3600e3), end = new Date(run + steps[t + 1] * 3600e3);
+  const hm = { hour: "2-digit", minute: "2-digit" };
+  $("valid").textContent = `${fmtIST(start, { weekday: "short", day: "numeric", month: "short" })} · ${fmtIST(start, hm)}–${fmtIST(end, hm)} IST`;
+  $("lead").textContent = `+${steps[t]}–${steps[t + 1]} h · ${steps[t + 1] - steps[t]} h interval`;
+  // slider is in forecast hours (time-proportional), not interval index
+  $("slider").value = steps[t];
+  $("slider").style.setProperty("--pct", `${(steps[t] / steps[steps.length - 2]) * 100}%`);
+}
+
+function buildTicks() {
+  // one tick per IST midnight, positioned at the interval that starts the day
+  const { steps } = meta, run = Date.parse(meta.run), n = steps.length - 1;
+  const box = $("ticks");
+  box.innerHTML = "";
+  let prevDay = null;
+  for (let t = 0; t < n; t++) {
+    const d = new Date(run + steps[t] * 3600e3);
+    const day = fmtIST(d, { day: "numeric" });
+    if (day !== prevDay && prevDay !== null) {
+      const el = document.createElement("span");
+      el.style.left = `${(steps[t] / steps[n - 1]) * 100}%`;
+      el.textContent = fmtIST(d, { weekday: "short", day: "numeric" });
+      box.appendChild(el);
+    }
+    prevDay = day;
+  }
 }
 
 function buildLegend() {
-  const ramp = COLORS.map((c) => `<span style="background:rgb(${c})"></span>`).join("");
-  document.getElementById("legend").innerHTML =
-    `<span>mm/h</span><span class="ramp">${ramp}</span><span>${LEVELS.join(" · ")}+</span>`;
+  const grad = STOPS.map(([, c], i) => `rgb(${c}) ${(i / (STOPS.length - 1)) * 100}%`).join(",");
+  $("legend").innerHTML =
+    `<span>mm/h</span><span class="ramp" style="background:linear-gradient(90deg,${grad})"></span>` +
+    `<span class="ramp-labels">${STOPS.map(([r]) => `<i>${r}</i>`).join("")}</span>`;
+}
+
+function setPlaying(on) {
+  clearInterval(timer);
+  timer = null;
+  $("play").classList.toggle("on", on);
+  $("play").setAttribute("aria-label", on ? "Pause" : "Play");
+  if (on) {
+    const n = meta.steps.length - 1;
+    timer = setInterval(() => show((current + 1) % n), FRAME_MS);
+  }
 }
 
 async function main() {
   meta = await (await fetch("data/meta.json", { cache: "no-cache" })).json();
-  const buf = await (await fetch("data/rain.bin", { cache: "no-cache" })).arrayBuffer();
-  rain = new Uint16Array(buf);
+  rain = new Uint16Array(await (await fetch("data/rain.bin", { cache: "no-cache" })).arrayBuffer());
   const n = meta.steps.length - 1;
   if (rain.length !== n * meta.nlat * meta.nlon) throw new Error("rain.bin size does not match meta.json");
 
-  const run = new Date(meta.run);
-  document.getElementById("run").textContent =
-    `ECMWF IFS run ${run.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+  $("run").textContent = `IFS run ${meta.run.slice(0, 16).replace("T", " ")} UTC`;
+  setupGrid();
+  layers = [0, 1].map(() => L.imageOverlay(renderFrame(0), bounds, { opacity: 0, className: "rain" }).addTo(map));
 
-  const slider = document.getElementById("slider");
-  slider.max = n - 1;
-  slider.addEventListener("input", () => render(+slider.value));
+  const slider = $("slider");
+  slider.max = meta.steps[n - 1];
+  slider.step = 3;
+  const intervalAt = (h) => { let t = 0; while (t < n - 1 && meta.steps[t + 1] <= h) t++; return t; };
+  slider.addEventListener("input", () => { setPlaying(false); show(intervalAt(+slider.value)); });
+  $("play").addEventListener("click", () => setPlaying(!timer));
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" && e.target !== slider) return;
+    if (e.key === " ") { e.preventDefault(); setPlaying(!timer); }
+    if (e.key === "ArrowRight" && e.target !== slider) show(Math.min(n - 1, current + 1));
+    if (e.key === "ArrowLeft" && e.target !== slider) show(Math.max(0, current - 1));
+  });
   buildLegend();
-  render(0);
+  buildTicks();
+  show(0);
+  document.body.classList.add("ready");
 }
 
 main().catch((e) => {
-  document.getElementById("run").textContent = `Failed to load forecast: ${e.message}`;
+  $("run").textContent = `Failed to load forecast: ${e.message}`;
   console.error(e);
 });

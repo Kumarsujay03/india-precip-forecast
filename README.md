@@ -33,6 +33,14 @@ The canvas rows are spaced evenly in Web Mercator y, so the 0.25° lat/lon grid 
 Colours show the **mean rain rate in mm/h** over the interval, so 3 h and 6 h intervals are comparable.
 Times are shown in IST.
 
+- **Smooth field:** each frame is drawn at 4× the grid resolution with bilinear interpolation.
+  Colours blend continuously, on a log scale, through stops from 0.1 to 32 mm/h. Drizzle fades in instead of starting at a hard edge.
+- **Animation:**
+  - Two image overlays crossfade over 280 ms when the time changes.
+  - The play/pause button (or Space) steps through about 1.5 frames per second, and the ← → keys step one frame.
+  - Each frame is rendered once (about 10 ms) and cached, and the next frame is rendered ahead during idle time.
+- **Time slider:** proportional to forecast hours, so the 6-hourly days after 144 h are not squeezed. It has IST day ticks.
+
 ## Verification
 
 - `pytest`: a known accumulated series in metres gives the expected mm per step.
@@ -62,4 +70,5 @@ python3 -m http.server 8765 -d site   # open http://localhost:8765
 
 ## Known limitations
 
-_To be added._
+- Bilinear smoothing is for display only. It can make rain appear slightly beyond the 0.25° cells that actually had it.
+- The map uses whole zoom levels to avoid tile seams. Faint seams can still show on displays with fractional scaling (for example 1.67×) in Chromium.
