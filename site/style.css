@@ -26,7 +26,15 @@ h1 { font-size: 15px; margin: 0; color: var(--accent); letter-spacing: .1em; tex
 @keyframes pulse { 50% { opacity: .35; } }
 
 #stage { flex: 1; position: relative; display: flex; min-height: 300px; }
-#map { flex: 1; background: var(--bg); cursor: crosshair; }
+#map { flex: 1; cursor: crosshair;
+  background: radial-gradient(ellipse at 55% 45%, #0c1620 0%, var(--bg) 70%); }
+.india-border { filter: drop-shadow(0 0 3px rgba(56, 214, 245, 0.55)); }
+.leaflet-tooltip.city-label { background: none; border: 0; box-shadow: none; padding: 0;
+  color: #b9cbd5; font: 10px/1 var(--mono); letter-spacing: .03em;
+  text-shadow: 0 0 3px #070b10, 0 0 3px #070b10, 0 0 6px #070b10; }
+.leaflet-tooltip.city-label::before { display: none; }
+.leaflet-control-attribution { background: rgba(7, 11, 16, 0.75) !important; color: var(--dim); }
+.leaflet-control-attribution a { color: var(--dim); }
 /* crossfade between the two rain overlays + gentle first appearance */
 .leaflet-image-layer.rain { transition: opacity 280ms ease; image-rendering: auto; }
 .leaflet-overlay-pane { opacity: 0; transition: opacity 600ms ease; }

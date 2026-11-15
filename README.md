@@ -29,10 +29,17 @@ ECMWF IFS open data (`ecmwf-opendata` package), parameter `tp` (total precipitat
 
 `site/` is plain HTML/JS with Leaflet 1.9.4 and no build step.
 `rain.bin` is loaded into a `Uint16Array`. Each interval is drawn to a canvas and shown as a Leaflet image overlay.
-The canvas rows are spaced evenly in Web Mercator y, so the 0.25° lat/lon grid lines up with the basemap; a plain lat/lon image would drift north–south.
+The canvas rows are spaced evenly in Web Mercator y, so the 0.25° lat/lon grid lines up with the map; a plain lat/lon image would drift north–south.
 Colours show the **mean rain rate in mm/h** over the interval, so 3 h and 6 h intervals are comparable.
 Times are shown in IST.
 
+- **India-only map:** there are no basemap tiles. The map shows India's outline as a glowing border, and rain is clipped to India.
+  - The outline comes from Natural Earth 1:10m Admin 0, India point of view (public domain), so it uses the boundaries as claimed by India.
+    It is simplified to 43 KB (`site/india.geojson`, built by `tools/build_india.py`), keeping 99.99% of the area.
+  - The polygon is rasterised onto the rain canvas grid as a mask and grown by 2 px (about 14 km), so coasts and islands such as Port Blair keep their rain.
+    Points outside India can't be selected.
+  - Panning and zooming are limited to India, which fits the screen at any size.
+  - City labels come from the GeoNames list, more as you zoom in. They are decluttered on screen: when two would overlap, the larger city wins.
 - **Smooth field:** each frame is drawn at 4× the grid resolution with bilinear interpolation.
   Colours blend continuously, on a log scale, through stops from 0.1 to 32 mm/h. Drizzle fades in instead of starting at a hard edge.
 - **Animation:**
@@ -92,6 +99,8 @@ ecCodes comes from the `eccodeslib` pip wheel, so no system package is needed.
 node --test tests/dry.test.js      # dry-window finder tests
 # rebuild the city list (GeoNames cities15000.txt + admin1CodesASCII.txt):
 python3 tools/build_cities.py cities15000.txt admin1CodesASCII.txt site/cities.json
+# rebuild the India outline (needs: pip install pyshp shapely):
+python3 tools/build_india.py ne_10m_admin_0_countries_ind.shp site/india.geojson
 python3 -m http.server 8765 -d site   # open http://localhost:8765
 ```
 
@@ -100,4 +109,4 @@ python3 -m http.server 8765 -d site   # open http://localhost:8765
 - The city list only covers places in GeoNames' `cities15000` file with population ≥ 100k, plus state capitals. Smaller towns such as Leh aren't in it, but clicking the map still works anywhere.
 
 - Bilinear smoothing is for display only. It can make rain appear slightly beyond the 0.25° cells that actually had it.
-- The map uses whole zoom levels to avoid tile seams. Faint seams can still show on displays with fractional scaling (for example 1.67×) in Chromium.
+- The India mask is grown by about 14 km so coasts and small islands keep their rain. Rain within that distance offshore is therefore still drawn.

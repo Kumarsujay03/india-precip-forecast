@@ -52,7 +52,7 @@ function setupPointPanel(map, meta, rain, getFrame) {
 
   function open(latlng, label) {
     const i = Math.round((latlng.lat - lat0) / dlat), j = Math.round((latlng.lng - lon0) / dlon);
-    if (i < 0 || i >= nlat || j < 0 || j >= nlon) return false;   // outside the India box
+    if (i < 0 || i >= nlat || j < 0 || j >= nlon || !window.inIndia(latlng)) return false;   // outside India
     const glat = lat0 + i * dlat, glon = lon0 + j * dlon;
     const mm = series(i, j);
     const from = Math.max(0, nowH());
@@ -145,7 +145,7 @@ function setupPointPanel(map, meta, rain, getFrame) {
     state = null;
   }
 
-  map.on("click", (e) => open(e.latlng));
+  map.on("click", (e) => { if (!open(e.latlng)) window.toast?.("Click inside India for a point forecast."); });
   $("pt-close").addEventListener("click", close);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
 

@@ -11,10 +11,11 @@ const ALIASES = {
 function setupSearch(map, cities, panel) {
   const $ = (id) => document.getElementById(id);
   const input = $("search"), list = $("results"), locBtn = $("locate");
-  const norm = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const norm = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const index = cities.map(([name, state, lat, lon]) => ({ name, state, lat, lon, key: norm(name) }));
   let matches = [], active = -1;
 
+  window.toast = toast;
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg;

@@ -59,7 +59,9 @@ function setupGrid() {
     const y = yN + ((r + 0.5) / H) * (yS - yN);
     rowLat[r] = (360 / Math.PI) * Math.atan(Math.exp(y)) - 90;
   }
+  if (indiaGeo) indiaMask = buildMask(indiaGeo, nlon * SUPERSAMPLE, H, west, east, yN, yS);
 }
+let indiaGeo = null;
 
 function renderFrame(t) {
   if (frames.has(t)) return frames.get(t);
@@ -81,7 +83,7 @@ function renderFrame(t) {
       const v = (rain[row0 + j0] * (1 - wj) + rain[row0 + j1] * wj) * (1 - wi)
               + (rain[row1 + j0] * (1 - wj) + rain[row1 + j1] * wj) * wi;
       const rate = v * k;
-      if (rate < MIN_RATE) continue;
+      if (rate < MIN_RATE || (indiaMask && !indiaMask[r * W + x])) continue;
       const q = lutIndex(rate) * 4, p = (r * W + x) * 4;
       img.data[p] = lut[q]; img.data[p + 1] = lut[q + 1]; img.data[p + 2] = lut[q + 2]; img.data[p + 3] = lut[q + 3];
     }
@@ -172,13 +174,120 @@ function setPlaying(on) {
 
 function initMap() {
   if (!window.L) throw new Error("the map library (Leaflet) could not be loaded - check your connection or content blocker");
-  map = L.map("map", { zoomSnap: 1, minZoom: 3, maxZoom: 10 });  // whole zooms: no tile seams
-  // Keyless dark basemap (CARTO dark tiles now return an "API key required" placeholder).
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-    attribution: "Basemap &copy; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
-    maxZoom: 10,
-  }).addTo(map);
-  map.fitBounds([[5, 66], [38, 100]]);
+  // No basemap tiles: the map shows only India (outline from india.geojson) with the rain on top.
+  map = L.map("map", { zoomSnap: 0.25, zoomDelta: 0.5, maxZoom: 9, attributionControl: true });
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+  map.createPane("land").style.zIndex = 350;      // below rain overlays (400)
+  map.createPane("border").style.zIndex = 450;    // outline drawn above the rain
+  map.createPane("labels").style.zIndex = 460;
+  map.getPane("border").style.pointerEvents = "none";
+  map.getPane("labels").style.pointerEvents = "none";
+  fitIndia();
+  window.addEventListener("resize", () => { clearTimeout(fitIndia.t); fitIndia.t = setTimeout(() => fitIndia(true), 200); });
+}
+
+const INDIA_BOUNDS = [[6.5, 68], [37.2, 97.5]];
+function fitIndia(keepView = false) {
+  // Fit India to the screen, then stop users panning/zooming far away from it.
+  const z = map.getBoundsZoom(INDIA_BOUNDS, false, L.point(16, 16));
+  map.setMinZoom(z);
+  map.setMaxBounds(L.latLngBounds(INDIA_BOUNDS).pad(0.15));
+  if (!keepView || map.getZoom() < z) map.fitBounds(INDIA_BOUNDS, { padding: [8, 8] });
+}
+
+let indiaMask = null;   // Uint8Array over the rain canvas: 1 = inside India
+
+function addIndia(geo) {
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent").trim();
+  L.geoJSON(geo, { pane: "land", interactive: false,
+    style: { stroke: false, fillColor: "#0f1a24", fillOpacity: 1 } }).addTo(map);
+  L.geoJSON(geo, { pane: "border", interactive: false,
+    style: { color: accent, weight: 1.2, opacity: 0.85, fill: false, className: "india-border" } }).addTo(map);
+  map.attributionControl.addAttribution('Boundary: <a href="https://www.naturalearthdata.com/">Natural Earth</a> (India view)');
+}
+
+// Rasterise the India polygons onto the rain canvas grid (same Mercator row spacing),
+// so rain outside India is not drawn.
+function buildMask(geo, W, H, west, east, yN, yS) {
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.beginPath();
+  const px = (lon) => ((lon - west) / (east - west)) * W;
+  const py = (lat) => ((mercY(lat) - yN) / (yS - yN)) * H;
+  for (const f of geo.features) {
+    const g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+    for (const poly of polys) for (const ring of poly) {
+      ring.forEach(([lon, lat], k) => (k ? ctx.lineTo(px(lon), py(lat)) : ctx.moveTo(px(lon), py(lat))));
+      ctx.closePath();
+    }
+  }
+  ctx.fill("evenodd");
+  const a = ctx.getImageData(0, 0, W, H).data, m = new Uint8Array(W * H);
+  for (let k = 0; k < m.length; k++) m[k] = a[k * 4 + 3] > 0 ? 1 : 0;
+  // Grow the mask by MASK_GROW px (~7 km each) so coasts and small islands keep their rain.
+  let cur = m;
+  for (let pass = 0; pass < MASK_GROW; pass++) {
+    const next = cur.slice();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (cur[y * W + x]) continue;
+      if ((x > 0 && cur[y * W + x - 1]) || (x < W - 1 && cur[y * W + x + 1]) ||
+          (y > 0 && cur[(y - 1) * W + x]) || (y < H - 1 && cur[(y + 1) * W + x])) next[y * W + x] = 1;
+    }
+    cur = next;
+  }
+  return cur;
+}
+const MASK_GROW = 2;
+
+function inIndia(latlng) {
+  if (!indiaMask) return true;
+  const { nlon } = meta, W = nlon * SUPERSAMPLE, H = rowLat.length;
+  const [[south, west], [north, east]] = bounds;
+  const x = Math.floor(((latlng.lng - west) / (east - west)) * W);
+  const y = Math.floor(((mercY(north) - mercY(latlng.lat)) / (mercY(north) - mercY(south))) * H);
+  return x >= 0 && x < W && y >= 0 && y < H && indiaMask[y * W + x] === 1;
+}
+
+// [min zoom, max labels, min spacing in degrees] - larger cities win; nearby smaller ones are skipped
+const CITY_TIERS = [[0, 12, 1.5], [5.5, 40, 0.7], [7, 150, 0.25]];
+function addCityLabels(cities) {
+  const chosen = [];
+  const layers = CITY_TIERS.map(([minZ, count, sep]) => {
+    const picked = [];
+    for (const c of cities) {
+      if (chosen.length >= count) break;
+      if (chosen.includes(c)) continue;
+      if (chosen.some((o) => Math.hypot(o[2] - c[2], o[3] - c[3]) < sep)) continue;
+      chosen.push(c); picked.push(c);
+    }
+    return [minZ, L.layerGroup(picked.map(([name, , lat, lon]) =>
+      L.circleMarker([lat, lon], { pane: "labels", radius: 2, weight: 0, fillColor: "#d6e6ee", fillOpacity: 0.9, interactive: false })
+        .bindTooltip(name, { permanent: true, direction: "right", offset: [4, 0], className: "city-label", pane: "labels" })))];
+  });
+  const markers = layers.flatMap(([, g]) => g.getLayers());   // largest cities first
+  // Screen-space decluttering: walk cities largest-first and hide any label (and its dot)
+  // that would overlap one already shown.
+  function declutter() {
+    const shown = [];
+    for (const m of markers) {
+      const tip = m.getTooltip()?.getElement(), dot = m.getElement();
+      if (!tip || !dot) continue;
+      tip.style.visibility = dot.style.visibility = "";
+      const b = tip.getBoundingClientRect();
+      const hit = shown.some((o) => b.left < o.right + 4 && o.left < b.right + 4 && b.top < o.bottom + 2 && o.top < b.bottom + 2);
+      if (hit) tip.style.visibility = dot.style.visibility = "hidden";
+      else shown.push(b);
+    }
+  }
+  const update = () => {
+    layers.forEach(([minZ, g]) => (map.getZoom() >= minZ ? g.addTo(map) : g.remove()));
+    declutter();
+  };
+  map.on("zoomend", update);
+  update();
 }
 
 // Fetch rain.bin with a progress bar. Size is known from meta.json, so progress works
@@ -210,6 +319,7 @@ async function main() {
   window.appStarted = true;
   initMap();
   loader("Fetching forecast metadata…", 0.02);
+  const indiaReq = fetch("india.geojson").then((r) => (r.ok ? r.json() : null)).catch(() => null);
   const mr = await fetch("data/meta.json", { cache: "no-cache" });
   if (!mr.ok) throw new Error(`forecast data not found (meta.json: HTTP ${mr.status})`);
   meta = await mr.json();
@@ -217,6 +327,8 @@ async function main() {
   rain = new Uint16Array(await fetchBin("data/rain.bin", bytes,
     (f) => loader(`Downloading rainfall grid… ${((f * bytes) / 1e6).toFixed(1)} / ${(bytes / 1e6).toFixed(1)} MB`, 0.05 + 0.85 * f)));
   loader("Rendering map…", 0.95);
+  indiaGeo = await indiaReq;
+  if (indiaGeo) addIndia(indiaGeo);
 
   $("run").textContent = `IFS run ${meta.run.slice(0, 16).replace("T", " ")} UTC`;
   setupGrid();
@@ -238,10 +350,12 @@ async function main() {
   buildTicks();
   show(0);
   document.body.classList.add("ready");
+  map.invalidateSize();   // layout (controls, fonts) has settled: re-measure and refit India
+  fitIndia();
   window.pointPanel = setupPointPanel(map, meta, rain, () => current);
   // City search is optional: if the list fails to load, the rest of the app still works.
   fetch("cities.json").then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-    .then((cities) => setupSearch(map, cities, window.pointPanel))
+    .then((cities) => { addCityLabels(cities); setupSearch(map, cities, window.pointPanel); })
     .catch(() => { $("finder").hidden = true; });
 }
 
