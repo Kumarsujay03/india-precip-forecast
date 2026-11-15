@@ -149,10 +149,14 @@ function buildTicks() {
 }
 
 function buildLegend() {
-  const grad = STOPS.map(([, c], i) => `rgb(${c}) ${(i / (STOPS.length - 1)) * 100}%`).join(",");
+  // Labels sit at the same percentage positions as their colour stops, so they line up exactly.
+  const last = STOPS.length - 1, pos = (i) => (i / last) * 100;
+  const grad = STOPS.map(([, c], i) => `rgb(${c}) ${pos(i)}%`).join(",");
+  const ticks = STOPS.map(([r], i) => `<i style="left:${pos(i)}%">${r}${i === last ? "+" : ""}</i>`).join("");
   $("legend").innerHTML =
-    `<span>mm/h</span><span class="ramp" style="background:linear-gradient(90deg,${grad})"></span>` +
-    `<span class="ramp-labels">${STOPS.map(([r]) => `<i>${r}</i>`).join("")}</span>`;
+    `<span class="unit">mm/h</span>` +
+    `<div class="scale"><span class="ramp" style="background:linear-gradient(90deg,${grad})"></span>` +
+    `<div class="stops" aria-hidden="true">${ticks}</div></div>`;
 }
 
 function setPlaying(on) {
